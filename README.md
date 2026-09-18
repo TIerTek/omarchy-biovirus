@@ -8,6 +8,8 @@ every login, a matching SDDM login greeter, a Limine boot menu, and a
 Everything on the desktop is drawn in-process by Omarchy's own Quickshell
 shell — no `swww`, no `mpvpaper`, no video files.
 
+![outbreak scene on the desktop](docs/desktop.png)
+
 | Plate | Scene |
 |---|---|
 | `biovirus-virions` | drifting virion field |
@@ -41,6 +43,10 @@ That is the desktop and lock screen. The rest is opt-in, and the flags combine:
 and lock plugins, your previous prompt/fastfetch/tab bar, and removes the
 scripts, hook and greeter. The theme itself is left alone, and the boot menu
 has its own `apply.sh --revert`.
+
+| Login greeter | Lock screen |
+|---|---|
+| ![greeter](docs/greeter.png) | ![lock](docs/lock.png) |
 
 ## How it works
 
