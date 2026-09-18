@@ -5,6 +5,8 @@ sddm/background.png
 sddm/fx/
 
 # Optional checkout of TierTek/omarchy-biovirus-theme, used by test/ only.
-theme/
+theme
 
 __pycache__/
+limine/local/
+limine/preview/

@@ -1,11 +1,12 @@
 # BioVirus — the animated suite
 
 The [BioVirus theme](https://github.com/TierTek/omarchy-biovirus-theme) is a
-set of still plates. This repo is what makes them move: four QML scenes that
-run under the desktop wallpaper and the lock screen, a wallpaper that changes
-at every login, and a matching SDDM login greeter. Everything is drawn
-in-process by Omarchy's own Quickshell shell — no `swww`, no `mpvpaper`, no
-video files.
+set of still plates. This repo is everything else: four QML scenes that run
+under the desktop wallpaper and the lock screen, a wallpaper that changes at
+every login, a matching SDDM login greeter, a Limine boot menu, and a
+"containment HUD" for the terminal — starship prompt, kitty tab bar, fastfetch.
+Everything on the desktop is drawn in-process by Omarchy's own Quickshell
+shell — no `swww`, no `mpvpaper`, no video files.
 
 | Plate | Scene |
 |---|---|
@@ -27,14 +28,19 @@ cd omarchy-biovirus
 omarchy theme set biovirus && omarchy restart shell
 ```
 
-Add `--sddm` to also install the login greeter (one root prompt; it is
-installed but not activated — the script prints the two lines that switch
-SDDM to it). Machines that autologin never show the greeter, so this is
-opt-in.
+That is the desktop and lock screen. The rest is opt-in, and the flags combine:
 
-`./install.sh --uninstall` removes the plugins (Omarchy's stock background
-and lock come back), the scripts and the login hook, and the greeter if it
-was installed. The theme itself is left alone.
+| Flag | Installs |
+|---|---|
+| `--sddm` | The login greeter (one root prompt). Installed but not activated — the script prints the two lines that switch SDDM to it. Machines that autologin never show a greeter. |
+| `--hud` | The terminal HUD: `starship.toml`, kitty tab bar + biohazard watermark + cursor trail (as an `include` line at the end of your `kitty.conf`), and the fastfetch layout with its animated reticle. Your previous starship, fastfetch and `tab_bar.py` are kept as `*.pre-biovirus`. |
+| `--limine` | Renders a boot-menu header and plate branded with this machine's hostname into `limine/local/`, and prints the `sudo limine/apply.sh --variant local` line that installs it. It never touches `/boot` itself. |
+| `--all` | All three. |
+
+`./install.sh --uninstall` puts everything back: Omarchy's stock background
+and lock plugins, your previous prompt/fastfetch/tab bar, and removes the
+scripts, hook and greeter. The theme itself is left alone, and the boot menu
+has its own `apply.sh --revert`.
 
 ## How it works
 
@@ -72,6 +78,36 @@ already showing. It works for whatever theme is active, not just BioVirus. To
 keep a plate out of the rotation, list its file name in
 `~/.config/omarchy/bg-random-exclude`, one per line — for example
 `biovirus-sequencer.png` on a laptop.
+
+## The terminal HUD
+
+![prompt](docs/prompt.png)
+
+The prompt is the lock screen's HUD frame as a two-line starship prompt:
+`BIOHAZARD·LVL-4·CONTAINED` in the header, the rail carrying hostname,
+directory and git, battery as "integrity" on the right. A failed command flips
+the header to a red `CONTAINMENT·BREACH` — the prompt's version of the lock
+screen's glitch tear. Every Nerd Font icon in the file is a `\u` escape on
+purpose: the codepoints are Private Use Area and some editors and transports
+silently drop them.
+
+kitty gets a custom tab bar in the same vocabulary (`tab_bar.py`), a faint
+biohazard watermark in the corner of every window, and a green cursor trail.
+fastfetch becomes a specimen readout with an animated reticle (kitty only —
+`config-static.jsonc` is the version for other terminals).
+
+## The boot menu
+
+![boot menu](docs/boot.png)
+
+Limine draws its menu over a wallpaper, and `limine/` renders one in the
+theme palette with the machine's name on it, plus the matching appearance
+header (`interface_branding`, terminal palette, colours). `apply.sh` splices
+the header above the entries `limine-entry-tool` generates, keeps a copy of
+the old file, re-enrols the bootloader hash, and has `--revert`. Read it
+before running it: it is the only part of this repo that touches `/boot`.
+`preview.sh` boots the real Limine in QEMU against a throwaway ESP so you can
+see the result first.
 
 ## A sibling palette
 

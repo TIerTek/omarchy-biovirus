@@ -1,0 +1,158 @@
+# starship.toml — BioVirus "containment HUD" prompt for Omarchy
+# Part of https://github.com/TierTek/omarchy-biovirus (install.sh --hud).
+# Backs up any existing ~/.config/starship.toml before installing.
+#
+#
+# ═══ READ THIS BEFORE EDITING ═══
+# EVERY icon below is a TOML \uXXXX / \UXXXXXXXX ESCAPE, deliberately, and must
+# stay that way. Pasting a literal Nerd Font glyph here is how this file silently
+# lost every icon twice on 2026-09-06: the codepoints are Private Use Area
+# (U+E000-U+F8FF and U+F0000+) and do not survive some editing/transport paths —
+# they vanish, leaving a valid-looking config that renders blanks. TOML escapes
+# are plain ASCII and cannot be stripped. starship parses them into the real
+# characters. Box-drawing (U+25xx) is used as escapes too, for consistency.
+#
+# Verify after ANY edit — this is the check that catches it:
+#   python3 -c "import io;s=io.open('$HOME/.config/starship.toml',encoding='utf-8').read();print([hex(ord(c)) for c in set(s) if 0xE000<=ord(c)<=0xF8FF or ord(c)>=0xF0000])"
+#   starship prompt --status=0 --logical-path ~ | grep -c $'\U000F00A7'
+# Structure rendering correctly proves NOTHING about the icons.
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# THE DESIGN — the lock screen's containment HUD, as a prompt
+#
+#   ┌─ <biohazard> BIOHAZARD·LVL-4·CONTAINED ─┤ hostname ├─┤  ~/Documents/AiProjects ├─┤  main ✎2 ├───── > integrity ▰▰▰▰▰▰▰▰▱▱ 87% ─ > 7:41 PM ─┐
+#   └❯
+#
+# A failed command flips the header to red "CONTAINMENT·BREACH ✗ ERROR" — the
+# prompt's version of the lock screen's glitch tear — and the ❯ turns red.
+#
+# Vocabulary comes from fx/HudFrame.qml in the omarchy-biovirus repo:
+#   header  "BIOHAZARD   LVL-4   CONTAINED" / "CONTAINMENT  BREACH"
+#   feet    "> strain......"  "> integrity...[bar] 87%"
+# Palette (theme colors.toml): rail/muted #2e8f63, dim text #63a186, value text
+# #b6e8d0, accent #4bffa5, alarm #ff4d5e, cyan #4be0ff, amber #ffc061, ink #04080a.
+#
+# RAIL MECHANICS: every left-hand module draws itself as `┤ body ├─` so the rail
+# passes through the gaps and a missing module (git outside a repo) leaves no
+# stray bracket. $fill extends the rail; right-hand modules each open with `─`.
+# `$fill` (NOT `right_format`) because right_format renders on the LAST line of a
+# multi-line prompt — the bare ❯ — so the telemetry would sit opposite the
+# character instead of the rail. Do not "simplify".
+# ─────────────────────────────────────────────────────────────────────────────
+
+add_newline = true
+command_timeout = 300
+
+format = """
+[\u250C\u2500](fg:#2e8f63)$status$hostname$directory$git_branch$git_status$fill${custom.integrity}${custom.integrity_low}$cmd_duration$jobs$time[\u2500\u2510](fg:#2e8f63)
+[\u2514](fg:#2e8f63)$character"""
+
+[fill]
+symbol = "\u2500"
+style = "fg:#2e8f63"
+
+# ── header: the containment status ───────────────────────────────────────────
+# `status` is the only module that knows the last exit code. success_symbol
+# makes it render on success too. $status itself would print "0" on success,
+# so the detail text is $common_meaning / $signal_name, which are empty when
+# nothing went wrong (ERROR / NOTFOUND / NOPERM / INT / ... when it did).
+[status]
+disabled = false
+success_symbol = "[\U000F00A7 BIOHAZARD\u00B7LVL-4\u00B7CONTAINED](bold fg:#4bffa5)"
+symbol = "[\U000F00A7 CONTAINMENT\u00B7BREACH \u2717](bold fg:#ff4d5e)"
+format = "[ ](fg:#2e8f63)$symbol([ $common_meaning$signal_name](bold fg:#ff4d5e))[ \u2500](fg:#2e8f63)"
+style = ""
+
+# ── hostname ─────────────────────────────────────────────────────────────────
+# Shown always (not only over ssh) so a terminal is identifiable at a glance.
+# The colour is the theme's magenta; if you run several machines, give each its
+# own colour here — starship silently ignores an unknown colour NAME, so use
+# hex or the ANSI names (purple, yellow, green…).
+[hostname]
+ssh_only = false
+ssh_symbol = "\uF0AC "
+format = "[\u2524 ](fg:#2e8f63)[$ssh_symbol$hostname](bold fg:#c77dff)[ \u251C\u2500](fg:#2e8f63)"
+
+# ── directory ────────────────────────────────────────────────────────────────
+[directory]
+truncation_length = 3
+truncation_symbol = "\u2026/"
+home_symbol = "\uF015 ~"
+style = "bold fg:#4bffa5"
+read_only = " \uF023"
+read_only_style = "bold fg:#ff4d5e"
+format = "[\u2524 ](fg:#2e8f63)[$path]($style)[$read_only]($read_only_style)[ \u251C\u2500](fg:#2e8f63)"
+repo_root_style = "bold fg:#7dffbe"
+repo_root_format = "[\u2524 ](fg:#2e8f63)[\uF07B ](fg:#63a186)[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style)[ \u251C\u2500](fg:#2e8f63)"
+
+# Icon PREPENDED, name kept. A bare-icon substitution looks tidy in a mockup and
+# is unusable: the name disappears and a truncated path renders as "~/ / ".
+[directory.substitutions]
+"Documents"  = "\uF15C Documents"
+"Downloads"  = "\uF019 Downloads"
+"Pictures"   = "\uF03E Pictures"
+"Music"      = "\uF001 Music"
+"Videos"     = "\uF03D Videos"
+"Desktop"    = "\uF108 Desktop"
+".config"    = "\uF013 config"
+
+# ── git: branch OPENS the bracket, status CLOSES it ──────────────────────────
+# Outside a repo neither renders and no stray bracket is left.
+[git_branch]
+format = "[\u2524 ](fg:#2e8f63)[\uE0A0 $branch](bold fg:#4be0ff)"
+style = ""
+
+[git_status]
+format     = "[$all_status$ahead_behind](bold fg:#4be0ff)[ \u251C\u2500](fg:#2e8f63)"
+style      = ""
+ahead      = " \u21E1${count}"
+diverged   = " \u21D5${ahead_count}/${behind_count}"
+behind     = " \u21E3${count}"
+conflicted = " [\uF071${count}](bold fg:#ff4d5e)"
+up_to_date = ""
+untracked  = " \uF128${count}"
+modified   = " \uF040${count}"
+stashed    = " \uF01C${count}"
+staged     = " \uF055${count}"
+renamed    = " \uF021${count}"
+deleted    = " \uF00D${count}"
+
+# ── right-hand telemetry: `> key...value` like the HUD feet ──────────────────
+# Battery as "integrity". Two modules so the bar can change colour: sh cannot
+# emit starship style markup, and a module has one style. The bar characters
+# are printed as UTF-8 octal (\342\226\256 = ▮, \342\226\257 = ▯) so this file
+# stays pure ASCII. Reads sysfs directly — no upower dependency, sub-ms.
+[custom.integrity]
+description = "battery as containment integrity, >= 20%"
+shell = ["sh"]
+when = '[ "$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 100)" -ge 20 ]'
+command = '''c=$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 100); s=$(cat /sys/class/power_supply/BAT0/status 2>/dev/null); f=$(( (c+5)/10 )); b=""; i=0; while [ $i -lt 10 ]; do if [ $i -lt $f ]; then b="$b$(printf '\342\226\256')"; else b="$b$(printf '\342\226\257')"; fi; i=$((i+1)); done; case "$s" in Charging) k=" AC";; *) k="";; esac; printf '%s %s%%%s' "$b" "$c" "$k"'''
+format = "[\u2500 ](fg:#2e8f63)[> integrity ](fg:#63a186)[$output](fg:#4bffa5)[ ](fg:#2e8f63)"
+
+[custom.integrity_low]
+description = "battery as containment integrity, < 20% \u2014 alarm"
+shell = ["sh"]
+when = '[ "$(cat /sys/class/power_supply/BAT0/capacity 2>/dev/null || echo 100)" -lt 20 ]'
+command = '''c=$(cat /sys/class/power_supply/BAT0/capacity); s=$(cat /sys/class/power_supply/BAT0/status 2>/dev/null); f=$(( (c+5)/10 )); b=""; i=0; while [ $i -lt 10 ]; do if [ $i -lt $f ]; then b="$b$(printf '\342\226\256')"; else b="$b$(printf '\342\226\257')"; fi; i=$((i+1)); done; case "$s" in Charging) k=" AC";; *) k="";; esac; printf '%s %s%%%s' "$b" "$c" "$k"'''
+format = "[\u2500 ](fg:#2e8f63)[> integrity ](fg:#ff4d5e)[$output](bold fg:#ff4d5e)[ ](fg:#2e8f63)"
+
+[cmd_duration]
+min_time = 2000
+format = "[\u2500 ](fg:#2e8f63)[> elapsed ](fg:#63a186)[$duration](fg:#ffc061)[ ](fg:#2e8f63)"
+
+[jobs]
+symbol = ""
+number_threshold = 1
+format = "[\u2500 ](fg:#2e8f63)[> jobs ](fg:#63a186)[$number](fg:#c77dff)[ ](fg:#2e8f63)"
+
+[time]
+# am/pm, no leading zero on the hour (%-l; plain %l space-pads instead).
+disabled = false
+time_format = "%-l:%M %p"
+format = "[\u2500 ](fg:#2e8f63)[> ](fg:#63a186)[$time](fg:#b6e8d0)[ ](fg:#2e8f63)"
+
+# ── the prompt character, on its own line under the └ ────────────────────────
+[character]
+success_symbol = "[\u276F](bold fg:#4bffa5)"
+error_symbol = "[\u2717\u276F](bold fg:#ff4d5e)"
+vimcmd_symbol = "[\u276E](bold fg:#4be0ff)"

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  // BioVirus "Containment HUD" — https://github.com/TierTek/omarchy-biovirus (install.sh --hud).
+  // Palette: accent 4bffa5, muted 2e8f63, dim 63a186, text d6f5e6, purple c77dff, cyan 4be0ff.
+  // Icons and ESC are \u escapes on purpose: Nerd Font codepoints are Private Use Area and do not
+  // survive every edit/transport path. Keep them as escapes.
+  // Logo: animated APNG via kitty-icat (kitty keeps it looping after fastfetch exits). Other
+  // terminals cannot show it -- use config-static.jsonc (kitty-direct PNG) or drop the logo block.
+  // Regenerate art: BIOVIRUS_TRANSPARENT=1 BIOVIRUS_SPECIMEN="SPECIMEN 001" python3 tools/make-anim.py .
+  // Rows are portable (fastfetch modules + /proc + iproute2). Hardware-specific extras (fan rpm, EC
+  // temperatures via hwmon) are easy to add as "command" rows; see the load/uplink rows for the shape.
+  "logo": {
+    "type": "kitty-icat",
+    "source": "~/.config/fastfetch/biovirus-reticle-anim.png",
+    "width": 40,
+    "padding": { "top": 4, "left": 1, "right": 2 }
+  },
+  "display": {
+    "separator": " ",
+    "percent": { "type": 3 },
+    "temp": { "ndigits": 0 },
+    "bar": { "char": { "elapsed": "█", "total": "░" }, "width": 10, "color": { "elapsed": "38;2;75;255;165", "total": "38;2;18;64;46" } }
+  },
+  "modules": [
+    "break",
+    { "type": "custom", "format": "\u001b[38;2;46;143;99m ┏━━━━\u001b[1;38;2;75;255;165m \udb80\udca7 BIOVIRUS \u001b[0;38;2;46;143;99m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓" },
+    { "type": "custom", "format": "\u001b[38;2;46;143;99m ┃ \u001b[38;2;99;161;134mCONTAINMENT LEVEL 4                \u001b[38;2;75;255;165mSTATUS \u001b[1;38;2;125;255;190m● NOMINAL\u001b[0;38;2;46;143;99m ┃" },
+    { "type": "custom", "format": "\u001b[38;2;46;143;99m ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛" },
+    "break",
+    { "type": "custom", "format": "\u001b[38;2;46;143;99m ▐ \u001b[1;38;2;75;255;165mSUBJECT\u001b[0;38;2;46;143;99m ─────────────────────────────────────────────" },
+    { "type": "title",    "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m id      ", "format": "\u001b[1;38;2;199;125;255m{host-name}\u001b[0;38;2;46;143;99m / \u001b[38;2;214;245;230m{user-name}" },
+    { "type": "host",     "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m chassis " },
+    { "type": "command",  "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m strain  ", "text": "echo \"Omarchy $(omarchy-version) · $(omarchy-version-channel)\"" },
+    { "type": "kernel",   "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m kernel  " },
+    { "type": "wm",       "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m vector  " },
+    { "type": "uptime",   "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m exposed " },
+    "break",
+    { "type": "custom", "format": "\u001b[38;2;46;143;99m ▐ \u001b[1;38;2;75;224;255mVITALS\u001b[0;38;2;46;143;99m ──────────────────────────────────────────────" },
+    { "type": "cpu",      "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m cpu     ", "temp": true, "format": "{name} \u001b[38;2;46;143;99m{cores-physical}c/{cores-logical}t · \u001b[38;2;214;245;230m{temperature}" },
+    { "type": "gpu",      "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m gpu     ", "temp": true, "format": "{name} \u001b[38;2;46;143;99m· \u001b[38;2;214;245;230m{temperature}" },
+    { "type": "command",  "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m load    ", "text": "read a b c p _ < /proc/loadavg; set -- /proc/[0-9]*; echo \"$a $b $c · $# procs\"" },
+    { "type": "memory",   "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m memory  ", "format": "{percentage-bar} \u001b[38;2;214;245;230m{used}\u001b[38;2;46;143;99m / {total}" },
+    { "type": "disk",     "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m disk    ", "folders": "/", "format": "{size-percentage-bar} \u001b[38;2;214;245;230m{size-used}\u001b[38;2;46;143;99m / {size-total}  {filesystem}" },
+    { "type": "battery",  "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m battery ", "format": "{capacity-bar} \u001b[38;2;214;245;230m{capacity}\u001b[38;2;46;143;99m  {status}" },
+    { "type": "command",  "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m uplink  ", "text": "d=$(ip -4 route show default | awk '{print $5; exit}'); a=$(ip -4 -o addr show \"$d\" | awk '{print $4; exit}'); if [ -d /sys/class/net/$d/wireless ]; then l=$(iw dev $d link); ss=$(printf '%s\\n' \"$l\" | awk -F': ' '/SSID/{print $2}'); tx=$(printf '%s\\n' \"$l\" | awk '/tx bitrate/{printf \"%.1fG\", $3/1000}'); echo \"$a · $ss · $tx\"; else s=$(cat /sys/class/net/$d/speed 2>/dev/null); x=$(cat /sys/class/net/$d/duplex 2>/dev/null); case $s in 10000) r=10G;; 5000) r=5G;; 2500) r=2.5G;; 1000) r=1G;; 100) r=100M;; -1|\"\") r=?;; *) r=${s}M;; esac; echo \"$a · $d · $r $x\"; fi" },
+    "break",
+    { "type": "custom", "format": "\u001b[38;2;46;143;99m ▐ \u001b[1;38;2;199;125;255mENVIRONMENT\u001b[0;38;2;46;143;99m ─────────────────────────────────────────" },
+    { "type": "packages",     "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m colonies" },
+    { "type": "terminal",     "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m dish    " },
+    { "type": "terminalfont", "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m font    " },
+    { "type": "command",      "key": "  \u001b[38;2;46;143;99m▸\u001b[38;2;99;161;134m theme   ", "text": "echo -e \"$(omarchy-theme-current)  \\e[38;2;255;77;94m█\\e[38;2;255;192;97m█\\e[38;2;75;255;165m█\\e[38;2;75;224;255m█\\e[38;2;75;157;255m█\\e[38;2;199;125;255m█\"" },
+    "break"
+  ]
+}

@@ -2,8 +2,14 @@
 # BioVirus — install the animated suite on top of the BioVirus theme.
 #
 #   ./install.sh                  theme (if missing) + background/lock plugins + scripts + login hook
-#   ./install.sh --sddm [...]     the above, plus the SDDM login greeter (asks for root once)
-#   ./install.sh --uninstall      put the stock Omarchy plugins back and remove everything installed here
+#   ./install.sh --sddm [...]     + the SDDM login greeter (asks for root once)
+#   ./install.sh --hud            + starship prompt, kitty tab bar/watermark/cursor trail, fastfetch
+#   ./install.sh --limine         + render the Limine boot-menu header and plate for this machine
+#   ./install.sh --all            everything above
+#   ./install.sh --uninstall      put everything back (stock plugins, your previous prompt/fastfetch)
+#
+# Flags combine: ./install.sh --sddm --hud. --sddm takes --colors <colors.toml>
+# and --background <png> for a sibling palette.
 #
 # The FX components are COPIED into each consumer rather than shared from one
 # location: the SDDM greeter runs as the `sddm` user and cannot read ~/.config,
@@ -15,6 +21,14 @@
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Refuse an overridden HOME. Only the config paths below are HOME-relative:
+# `omarchy plugin clone/remove` talk to the LIVE shell over IPC and the greeter
+# lives under /usr/share, so HOME=/somewhere/else is not a sandbox.
+if [[ $HOME != "$(getent passwd "$(id -un)" | cut -d: -f6)" ]]; then
+  echo "HOME ($HOME) is not $(id -un)'s home directory; this installer cannot be sandboxed that way." >&2
+  exit 1
+fi
 THEME_REPO="https://github.com/TierTek/omarchy-biovirus-theme"
 THEME_DIR="$HOME/.config/omarchy/themes/biovirus"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins"
@@ -27,10 +41,34 @@ BG_PLUGIN="$ME.background"
 LOCK_PLUGIN="$ME.lock"
 
 step() { printf '\033[1;32m==>\033[0m %s\n' "$1"; }
+note() { printf '    %s\n' "$1"; }
 as_root() { if (( EUID == 0 )); then "$@"; else pkexec "$@"; fi; }
+# First install wins: keep the user's ORIGINAL so --uninstall can put it back.
+keep_original() { [[ -e $1 && ! -e $1.pre-biovirus ]] && cp -a "$1" "$1.pre-biovirus" || true; }
+restore_original() {
+  if [[ -e $1.pre-biovirus ]]; then rm -rf "$1"; mv "$1.pre-biovirus" "$1"; note "restored $1"
+  else rm -rf "$1"; fi
+}
+
+DO_SDDM=0 DO_HUD=0 DO_LIMINE=0 DO_UNINSTALL=0
+COLORS=""; BG=""
+while (( $# )); do
+  case $1 in
+    --sddm) DO_SDDM=1 ;;
+    --hud) DO_HUD=1 ;;
+    --limine) DO_LIMINE=1 ;;
+    --all) DO_SDDM=1 DO_HUD=1 DO_LIMINE=1 ;;
+    --uninstall) DO_UNINSTALL=1 ;;
+    --colors) COLORS=$2; shift ;;
+    --background) BG=$2; shift ;;
+    -h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "unknown option: $1 (see --help)" >&2; exit 1 ;;
+  esac
+  shift
+done
 
 # ── uninstall ────────────────────────────────────────────────────────────
-if [[ ${1:-} == "--uninstall" ]]; then
+if (( DO_UNINSTALL )); then
   for p in "$BG_PLUGIN" "$LOCK_PLUGIN"; do
     if [[ -d $PLUGIN_DIR/$p ]]; then
       step "Removing plugin $p (stock omarchy.${p#$ME.} takes over)"
@@ -43,7 +81,19 @@ if [[ ${1:-} == "--uninstall" ]]; then
   if [[ -d $SDDM_DIR ]]; then
     step "Removing SDDM greeter $SDDM_DIR (root)"
     as_root rm -rf "$SDDM_DIR"
-    echo "  If /etc/sddm.conf.d/*.conf still names Current=biovirus, point it back at another theme."
+    note "If /etc/sddm.conf.d/*.conf still names Current=biovirus, point it back at another theme."
+  fi
+  if [[ -f $HOME/.config/kitty/biovirus.conf || -e $HOME/.config/starship.toml.pre-biovirus || -e $HOME/.config/fastfetch.pre-biovirus ]]; then
+    step "Removing the HUD (prompt, kitty, fastfetch)"
+    sed -i '/^include biovirus.conf$/d' "$HOME/.config/kitty/kitty.conf" 2>/dev/null || true
+    rm -f "$HOME/.config/kitty/biovirus.conf" "$HOME/.config/kitty/biohazard.png"
+    restore_original "$HOME/.config/kitty/tab_bar.py"
+    restore_original "$HOME/.config/starship.toml"
+    restore_original "$HOME/.config/fastfetch"
+    note "Restart kitty (omarchy restart terminal) to drop the tab bar."
+  fi
+  if [[ -f /boot/limine.conf.pre-biovirus ]]; then
+    note "Boot menu: the Limine header is still installed; revert with: sudo $SRC/limine/apply.sh --revert"
   fi
   echo "The theme itself is left in $THEME_DIR; remove it with: rm -rf $THEME_DIR"
   exit 0
@@ -106,20 +156,11 @@ install -m 0755 "$SRC/hooks/post-boot.d/random-background" "$HOOK"
 
 # ── SDDM greeter (root) ──────────────────────────────────────────────────
 # Opt-in: it needs elevation, and machines with autologin never show it anyway.
-if [[ ${1:-} == "--sddm" ]]; then
-  shift
-  # --sddm [--colors <colors.toml>] [--background <png>]
+if (( DO_SDDM )); then
   # The greeter cannot read the live theme (it runs as `sddm`), so its palette is
   # literal in Main.qml. A sibling palette is applied by substituting the five
   # literals at install time; the tracked Main.qml stays the canonical #4bffa5 set.
-  COLORS=""; BG="$THEME_DIR/backgrounds/biovirus-containment.png"
-  while (( $# )); do
-    case $1 in
-      --colors) COLORS=$2; shift 2 ;;
-      --background) BG=$2; shift 2 ;;
-      *) echo "unknown --sddm option: $1" >&2; exit 1 ;;
-    esac
-  done
+  BG=${BG:-$THEME_DIR/backgrounds/biovirus-containment.png}
   MAIN="$SRC/sddm/Main.qml"
   if [[ -n $COLORS ]]; then
     MAIN=$(mktemp)
@@ -151,6 +192,52 @@ PY
   echo "    sudo sed -i 's/^Current=.*/Current=biovirus/' /etc/sddm.conf.d/10-theme.conf"
   echo "    sudo sed -i 's/^Current=.*/Current=biovirus/' /etc/sddm.conf.d/99-omarchy-login.conf"
   echo "  Autologin is left untouched."
+fi
+
+# ── HUD: prompt, terminal, fastfetch ─────────────────────────────────────
+if (( DO_HUD )); then
+  step "starship prompt -> ~/.config/starship.toml"
+  keep_original "$HOME/.config/starship.toml"
+  install -m 0644 "$SRC/hud/starship.toml" "$HOME/.config/starship.toml"
+
+  step "kitty tab bar, watermark, cursor trail -> ~/.config/kitty"
+  mkdir -p "$HOME/.config/kitty"
+  keep_original "$HOME/.config/kitty/tab_bar.py"
+  install -m 0644 "$SRC/hud/kitty/biovirus.conf" "$SRC/hud/kitty/tab_bar.py" "$SRC/hud/kitty/biohazard.png" "$HOME/.config/kitty/"
+  touch "$HOME/.config/kitty/kitty.conf"
+  grep -qx 'include biovirus.conf' "$HOME/.config/kitty/kitty.conf" || printf '\n# BioVirus HUD (omarchy-biovirus); remove this line to switch it off\ninclude biovirus.conf\n' >> "$HOME/.config/kitty/kitty.conf"
+
+  step "fastfetch containment HUD -> ~/.config/fastfetch"
+  keep_original "$HOME/.config/fastfetch"
+  mkdir -p "$HOME/.config/fastfetch/tools"
+  install -m 0644 "$SRC"/hud/fastfetch/*.jsonc "$SRC"/hud/fastfetch/*.png "$HOME/.config/fastfetch/"
+  install -m 0644 "$SRC"/hud/fastfetch/tools/*.py "$HOME/.config/fastfetch/tools/"
+  note "Open a NEW kitty window to see the tab bar (kitty caches tab_bar.py per process)."
+  note "Your previous files are kept as *.pre-biovirus and come back with --uninstall."
+fi
+
+# ── Limine boot menu ─────────────────────────────────────────────────────
+# Rendered here, applied by the user: apply.sh splices a header into
+# /boot/limine.conf and re-enrols the bootloader hash, which is not something
+# a theme installer should do behind anyone's back.
+if (( DO_LIMINE )); then
+  step "Limine header + plate for $(hostname) -> limine/local/"
+  mkdir -p "$SRC/limine/local"
+  LC=${COLORS:-$THEME_DIR/colors.toml}
+  python3 "$SRC/limine/make-header.py" --colors "$LC" \
+    --branding "$(hostname | tr '[:lower:]' '[:upper:]')  //  BIOVIRUS CONTAINMENT" \
+    --plate local-boot.png "$SRC/limine/local/limine-header.conf"
+  if python3 -c 'import PIL' 2>/dev/null; then
+    python3 "$SRC/limine/make-boot-plate.py" ${COLORS:+--colors "$COLORS"} --prefix local \
+      --specimen "$(hostname)" "$SRC/limine/local" >/dev/null
+  else
+    note "python-pillow not installed: using the shipped generic plate (omarchy pkg add python-pillow to personalise)"
+    cp "$SRC/limine/biovirus-boot.png" "$SRC/limine/local/local-boot.png"
+  fi
+  note "Preview without touching /boot (needs qemu-base edk2-ovmf mtools dosfstools):"
+  note "  $SRC/limine/preview.sh $SRC/limine/local/limine-header.conf $SRC/limine/local/local-boot.png"
+  note "Apply (root, from a real terminal; --revert undoes it):"
+  note "  sudo $SRC/limine/apply.sh --variant local"
 fi
 
 step "Done. Apply with: omarchy theme set biovirus && omarchy restart shell"
