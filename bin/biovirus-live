@@ -1,0 +1,50 @@
+#!/bin/bash
+# biovirus-live — control the BioVirus animated desktop background.
+#
+# The animation is on by default and persists across shell restarts via
+# ~/.local/state/omarchy/biovirus-live, which the forked background plugin
+# reads at startup.
+
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: biovirus-live <on|off|toggle|status|intensity N>
+
+  on               Start the animated background
+  off              Stop it (wallpaper stays, motion stops)
+  toggle           Flip the current state
+  status           Print on/off
+  intensity N      Scale density and drift speed, 0.0 - 1.0 (not persisted)
+
+Requires the BioVirus background plugin (installed by install.sh) to be enabled.
+USAGE
+}
+
+case "${1:-}" in
+  on|off|toggle|status)
+    result=$(omarchy-shell biovirus "$1" 2>&1) || {
+      echo "biovirus-live: shell IPC unreachable — is omarchy-shell running with the BioVirus background plugin enabled?" >&2
+      exit 1
+    }
+    # `status` echoes the state; the mutating calls echo nothing useful, so
+    # report the resulting state rather than their return value.
+    if [[ $1 == status ]]; then
+      echo "$result"
+    else
+      omarchy-shell biovirus status
+    fi
+    ;;
+  intensity)
+    [[ -n ${2:-} ]] || { usage >&2; exit 2; }
+    omarchy-shell biovirus intensity "$2" >/dev/null
+    echo "intensity $2"
+    ;;
+  -h|--help|"")
+    usage
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac

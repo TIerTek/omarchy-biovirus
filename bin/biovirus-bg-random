@@ -1,0 +1,55 @@
+#!/bin/bash
+# Pick a random background for the CURRENT theme and apply it.
+#
+# Theme-agnostic despite the name: it enumerates whatever the active theme
+# ships, so it keeps working if the theme changes.
+#
+# Installed as ~/.config/omarchy/hooks/post-boot.d/random-background, which
+# Hyprland's autostart.lua fires about 2s into EVERY session start (see
+# /usr/share/omarchy/default/hypr/autostart.lua) -- not only after a cold boot.
+# So this is effectively "a different wallpaper each login".
+#
+# Opt out of specific backgrounds by listing their file names, one per line, in
+# ~/.config/omarchy/bg-random-exclude -- e.g. biovirus-sequencer.png, which
+# costs about twice the CPU of the other scenes.
+
+set -uo pipefail
+
+STATE="$HOME/.local/state/omarchy"
+THEME_NAME=$(cat "$STATE/current/theme.name" 2>/dev/null) || exit 0
+
+# The SAME two directories omarchy-theme-bg-next enumerates, and in the same
+# order. Note the theme path is the state COPY, not ~/.config/omarchy/themes --
+# a background only exists here after `omarchy theme set` has copied it in.
+THEME_BG="$STATE/current/theme/backgrounds/"
+USER_BG="$HOME/.config/omarchy/backgrounds/$THEME_NAME/"
+EXCLUDE="$HOME/.config/omarchy/bg-random-exclude"
+
+# Raw readlink, NOT readlink -f: omarchy-theme-bg-next compares the unresolved
+# target against these same find paths, and resolving it would never match.
+CURRENT=$(readlink "$STATE/current/background" 2>/dev/null)
+
+mapfile -d '' -t BACKGROUNDS < <(
+  find -L "$USER_BG" "$THEME_BG" -maxdepth 1 -type f \
+    \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif' \
+       -o -iname '*.bmp' -o -iname '*.webp' \) \
+    -print0 2>/dev/null | sort -z
+)
+
+POOL=()
+for bg in "${BACKGROUNDS[@]:-}"; do
+  [[ -n $bg ]] || continue
+  base=$(basename -- "$bg")
+  # Excluded by the user.
+  if [[ -f $EXCLUDE ]] && grep -qxF -- "$base" "$EXCLUDE"; then
+    continue
+  fi
+  # Skip the one already showing, so a login visibly changes something.
+  [[ $bg == "$CURRENT" ]] && continue
+  POOL+=("$bg")
+done
+
+# One background, or everything excluded: nothing to rotate to. Leave it alone.
+(( ${#POOL[@]} == 0 )) && exit 0
+
+omarchy-theme-bg-set "${POOL[RANDOM % ${#POOL[@]}]}"

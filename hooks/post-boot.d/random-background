@@ -1,0 +1,4 @@
+#!/bin/bash
+# Rotate to a random background for the current theme, once per session start.
+# Logic lives in the installed script so both stay in one place.
+exec "$HOME/.local/bin/biovirus-bg-random"
